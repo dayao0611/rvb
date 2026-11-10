@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Battle of the Red and Blue Agents — Offline</title>
+<link rel="stylesheet" href="TemplateData/style.css"/>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
+  #unity-container { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #unity-canvas { width: 100%; height: 100%; background: #0a0a0a; display: block; outline: none; }
+  #loading-cover { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #0a0a0a; z-index: 10; }
+  #unity-loading-bar { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  #unity-logo img { width: 120px; border-radius: 12px; }
+  #unity-progress-bar-empty { width: 240px; height: 8px; border: 1px solid #555; border-radius: 4px; overflow: hidden; }
+  #unity-progress-bar-full { height: 100%; width: 0%; background: #e33; transition: width .15s; }
+  .spinner { width: 28px; height: 28px; border: 3px solid #444; border-top-color: #e33; border-radius: 50%;
+    animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #err { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px; font: 13px/1.5 monospace;
+    color: #f88; background: rgba(0,0,0,.85); display: none; white-space: pre-wrap; z-index: 20; }
+</style>
+</head>
+<body class="dark">
+<div id="unity-container" class="unity-desktop">
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+<div id="loading-cover">
+  <div id="unity-loading-bar">
+    <div id="unity-logo"><img src="logo.png" alt=""/></div>
+    <div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div>
+    <div class="spinner"></div>
+  </div>
+</div>
+<div id="err"></div>
+
+<script>
+  // ---------------------------------------------------------------------------
+  // GamePush bridge. The Yandex build reports ads / login / leaderboards through
+  // this SDK. Online it connects to the real service; offline we fall back to a
+  // local stub so the game itself (duels, survival, local multiplayer) still runs.
+  // ---------------------------------------------------------------------------
+  window._gpAwaiter = { ready: null };
+  _gpAwaiter.ready = new Promise((resolve) => { window._gpAwaiter.done = resolve; });
+  window._unityAwaiter = { ready: null };
+  _unityAwaiter.ready = new Promise((resolve) => { window._unityAwaiter.done = resolve; });
+  window.GamePush = null;
+
+  function installGamePushStub() {
+    if (window.GamePush && window.GamePush.__isStub) return;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const values = {
+      IsMobile: String(isMobile),
+      IsPortrait: String(innerHeight > innerWidth),
+      IsPaused: "false",
+      IsDev: "false",
+      IsAllowedOrigin: "true",
+      PlayerIsLoggedIn: "false",
+      PlayerIsStub: "true",
+      PlayerHasAnyCredentials: "false",
+      PlatformHasIntegratedAuth: "false",
+      PlatformIsExternalLinksAllowed: "true",
+      PlatformType: "web",
+      Language: (navigator.language || "en").slice(0, 2),
+      AppTitle: "Battle of the Red and Blue Agents",
+      AppUrl: location.href,
+      AppDescription: "",
+      AppImage: "",
+      AppCanRequestReview: "false",
+      AppCanAddShortcut: "false",
+      SocialsIsSupportsShare: "false",
+      SocialsIsSupportsNativeShare: "false",
+      SocialsIsSupportsNativePosts: "false",
+      SocialsIsSupportsNativeInvite: "false",
+      SocialsIsSupportsNativeCommunityJoin: "false",
+      SocialsCanJoinCommunity: "false",
+      SocialsCommunityLink: "",
+      SocialsMakeShareLink: "",
+      SocialsGetSharePlayerID: "0",
+      SocialsGetShareContent: "",
+      AdsIsFullscreenAvailable: "false",
+      AdsIsRewardedAvailable: "false",
+      AdsIsPreloaderAvailable: "false",
+      AdsIsStickyAvailable: "false",
+      AdsIsAdblockEnabled: "false",
+      AdsIsFullscreenPlaying: "false",
+      AdsIsRewardedPlaying: "false",
+      AdsIsPreloaderPlaying: "false",
+      AdsIsStickyPlaying: "false",
+      AdsCanShowFullscreenBeforeGamePlay: "false",
+      AdsIsCountdownOverlayEnabled: "false",
+      AdsIsRewardedFailedOverlayEnabled: "false",
+      PaymentsIsAvailable: "false",
+      PaymentsIsSubscriptionsAvailable: "false",
+      AchievementsHas: "false",
+      AchievementsGetProgress: "0",
+      VariablesHas: "false",
+      PlayerGetID: "0",
+      PlayerGetName: "Player",
+      PlayerGetAvatar: "",
+      PlayerGetScore: "0",
+      PlayerGetPlaytimeToday: "0",
+      PlayerGetPlaytimeAll: "0",
+      PlayerGetActiveDays: "0",
+      PlayerGetActiveDaysConsecutive: "0",
+      PlayerGet: "{}",
+      PlayerGetFieldName: "",
+      PlayerGetFieldVariantName: "",
+      PlayerGetFieldVariantIndex: "-1",
+      PlayerGetFieldVariantAt: "",
+      PlayersFetch: "[]",
+      VariablesGet: "{}",
+      VariablesFetch: "{}",
+      ServerTime: String(Math.floor(Date.now() / 1000)),
+      LeaderboardFetch: "[]",
+      LeaderboardFetchPlayerRating: "{}",
+      LeaderboardScopedFetch: "[]",
+      LeaderboardScopedFetchPlayerRating: "{}",
+      PaymentsFetchProducts: "[]",
+      AchievementsFetch: "[]",
+      FilesFetch: "[]",
+      FilesFetchMore: "[]",
+      FilesLoadContent: "",
+      FilesChooseFile: "",
+      DocumentsFetch: "[]",
+      GamesCollectionsFetch: "[]",
+      Channels_MainChatId: "0",
+      Channels_IsMainChatEnabled: "false",
+      Channels_FetchChannels: "[]",
+      Channels_FetchChannel: "{}",
+      Channels_FetchMessages: "[]",
+      Channels_FetchMembers: "[]",
+      Channels_FetchInvites: "[]",
+      Channels_FetchJoinRequests: "[]",
+      Channels_FetchFeedMessages: "[]",
+      Channels_FetchSentInvites: "[]",
+      Channels_FetchSentJoinRequests: "[]",
+      Channels_FetchPersonalMessages: "[]",
+      Channels_FetchMoreChannels: "[]",
+      Channels_FetchMoreMessages: "[]",
+      Channels_FetchMoreMembers: "[]",
+      Channels_FetchMoreInvites: "[]",
+      Channels_FetchMoreJoinRequests: "[]",
+      Channels_FetchMoreFeedMessages: "[]",
+      Channels_FetchMoreSentInvites: "[]",
+      Channels_FetchMoreSentJoinRequests: "[]",
+      Channels_FetchMorePersonalMessages: "[]",
+      Channels_FetchChannelInvites: "[]",
+      Channels_CreateChannel: "0",
+      Channels_SendMessage: "0",
+      Channels_SendPersonalMessage: "0",
+      Channels_EditMessage: "true",
+      Channels_DeleteMessage: "true",
+      Channels_DeleteChannel: "true",
+      Channels_Join: "true",
+      Channels_Leave: "true",
+      Channels_AcceptInvite: "true",
+      Channels_CancelInvite: "true",
+      Channels_AcceptJoinRequest: "true",
+      Channels_RejectJoinRequest: "true",
+      Channels_RejectInvite: "true",
+      Channels_CancelJoin: "true",
+      Channels_Kick: "true",
+      Channels_Mute_Seconds: "true",
+      Channels_UnMute: "true",
+      Channels_UpdateChannel: "true",
+      Channels_SendInvite: "true",
+      Channels_SendFeedMessage: "true",
+      Channels_Open_Chat: "",
+      LeaderboardOpen: "",
+      AchievementsOpen: "",
+      GamesCollectionsOpen: "",
+      FullscreenOpen: "",
+      FullscreenClose: "",
+      FullscreenToggle: "",
+      PlayerLogin: "",
+      PlayerLoad: "",
+      PlayerSync: "",
+      PlayerSetScore: "",
+      PlayerAddScore: "",
+      PlayerSetName: "",
+      PlayerSetAvatar: "",
+      PlayerSetFlag: "",
+      PlayerSetBool: "",
+      PlayerSetNumber: "",
+      PlayerSetString: "",
+      PlayerReset: "",
+      PlayerRemove: "",
+      PlayerAdd: "",
+      PlayerToggle: "",
+      PlayerFetchFields: "",
+      VariablesSet: "",
+      LeaderboardScopedOpen: "",
+      LeaderboardScopedPublishRecord: "",
+      AchievementsUnlock: "",
+      AchievementsSetProgress: "",
+      AdsShowFullscreen: "",
+      AdsShowRewarded: "",
+      AdsShowPreloader: "",
+      AdsShowSticky: "",
+      AdsCloseSticky: "",
+      AdsRefreshSticky: "",
+      AnalyticsGoal: "",
+      AnalyticsHit: "",
+      AppRequestReview: "",
+      AppAddShortcut: "",
+      SocialsShare: "",
+      SocialsPost: "",
+      SocialsInvite: "",
+      SocialsJoinCommunity: "",
+      PaymentsPurchase: "",
+      PaymentsConsume: "",
+      PaymentsSubscribe: "",
+      PaymentsUnsubscribe: "",
+      GameReady: "",
+      GameplayStart: "",
+      GameplayStop: "",
+      HappyTime: "",
+      Pause: "",
+      Resume: "",
+      ChangeLanguage: "",
+      ChangeAvatarGenerator: "",
+      AvatarGenerator: "",
+      FilesUpload: "",
+      FilesUploadContent: "",
+      FilesUploadUrl: "",
+      FilesFetchMore2: "",
+      DocumentsOpen: "",
+    };
+    // The C# side waits for SendMessage callbacks after ad calls. Offline there is
+    // no ad to play, so answer immediately with the "watched successfully" result.
+    function send(method, data) {
+      try {
+        if (window.unityInstance && window.unityInstance.SendMessage) {
+          window.unityInstance.SendMessage("GamePushSDK", method, data == null ? "" : String(data));
+        }
+      } catch (e) { console.warn("SendMessage failed", method, e); }
+    }
+    const actions = {
+      AdsShowFullscreen() {
+        send("CallAdsStart", "true");
+        send("CallAdsFullscreenStart", "");
+        setTimeout(() => send("CallAdsFullscreenClose", "true"), 30);
+      },
+      AdsShowRewarded(tag) {
+        send("CallAdsStart", "true");
+        send("CallAdsRewardedStart", "");
+        setTimeout(() => {
+          send("CallAdsRewardedClose", "true");
+          send("CallAdsRewardedReward", tag || "");
+        }, 30);
+      },
+      AdsShowPreloader() {
+        send("CallAdsPreloaderStart", "");
+        setTimeout(() => send("CallAdsPreloaderClose", "true"), 30);
+      },
+      AdsShowSticky() { send("CallAdsStickyStart", ""); },
+      AdsCloseSticky() { send("CallAdsStickyClose", ""); },
+      AdsRefreshSticky() {},
+      PlayerLogin() { send("CallPlayerLoginComplete", "true"); },
+      PlayerLoad() { send("CallPlayerLoadComplete", "true"); },
+      PlayerSync() { send("CallPlayerSyncComplete", "true"); },
+      PlayerFetchFields() { send("CallPlayerFetchFieldsComplete", "[]"); },
+      LeaderboardOpen() { send("CallLeaderboardOpen", ""); },
+      AchievementsOpen() { send("CallAchievementsOpen", ""); },
+      GamesCollectionsOpen() { send("CallGamesCollectionsOpen", ""); },
+      FullscreenOpen() { send("CallFullscreenOpen", ""); },
+      FullscreenClose() { send("CallFullscreenClose", ""); },
+      SocialsInvite() {},
+      GameReady() {},
+    };
+
+    window.GamePush = new Proxy({ __isStub: true }, {
+      get(target, prop) {
+        if (prop === "__isStub") return true;
+        if (prop === "then") return undefined;
+        if (typeof prop !== "string") return undefined;
+        if (actions[prop]) return actions[prop];
+        if (prop in values) return () => values[prop];
+        return () => "";
+      },
+    });
+  }
+
+  let gpSettled = false;
+  function settleGP() {
+    if (gpSettled) return;
+    gpSettled = true;
+    _gpAwaiter.done();
+  }
+
+  window.onGPInit = (gp) => {
+    try {
+      window.GamePush = new GamePushUnity(gp);
+    } catch (e) {
+      console.warn("GamePush bridge failed, using stub:", e);
+      installGamePushStub();
+    }
+    settleGP();
+  };
+  window.onGPError = () => {
+    installGamePushStub();
+    settleGP();
+  };
+
+  // Offline build: never contact the GamePush backend, start with local defaults.
+  installGamePushStub();
+  settleGP();
+</script>
+
+<script>
+  const buildUrl = "Build";
+  const loaderUrl = buildUrl + "/Builds.loader.js";
+  const config = {
+    dataUrl: buildUrl + "/5dd137757f4984e6d91e534128dc3c0c.data.unityweb",
+    frameworkUrl: buildUrl + "/4add35dcb0a5affaf21600b73add9568.js.unityweb",
+    codeUrl: buildUrl + "/dc0d98b7d3c428710de3651998f4d8d2.wasm.unityweb",
+    streamingAssetsUrl: "StreamingAssets",
+    companyName: "vsegon",
+    productName: "DuelistStickman",
+    productVersion: "0.0.1",
+  };
+
+  const container = document.querySelector("#unity-container");
+  const canvas = document.querySelector("#unity-canvas");
+  const loadingCover = document.querySelector("#loading-cover");
+  const progressBarEmpty = document.querySelector("#unity-progress-bar-empty");
+  const progressBarFull = document.querySelector("#unity-progress-bar-full");
+  const spinner = document.querySelector(".spinner");
+  const errBox = document.querySelector("#err");
+
+  function fail(msg) {
+    spinner.style.display = "none";
+    errBox.style.display = "block";
+    errBox.textContent = "启动失败: " + msg + "\n请确认是通过 start.bat 启动（Unity 游戏不能用 file:// 直接打开）。";
+  }
+
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) container.className = "unity-mobile";
+
+  const unityLoader = document.createElement("script");
+  unityLoader.src = loaderUrl;
+  unityLoader.onerror = () => fail("无法加载 " + loaderUrl);
+  unityLoader.onload = () => {
+    _gpAwaiter.ready.then(() => {
+      createUnityInstance(canvas, config, (progress) => {
+        spinner.style.display = "none";
+        progressBarEmpty.style.display = "";
+        progressBarFull.style.width = `${100 * progress}%`;
+      }).then((unityInstance) => {
+        window.unityInstance = unityInstance;
+        _unityAwaiter.done(unityInstance);
+        loadingCover.style.display = "none";
+      }).catch((message) => fail(String(message)));
+    });
+  };
+  document.body.appendChild(unityLoader);
+
+  document.addEventListener("pointerdown", () => {
+    container.focus(); window.focus(); canvas.focus();
+  });
+  window.addEventListener("error", (e) => console.error(e.message));
+</script>
+</body>
+</html>
