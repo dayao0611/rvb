@@ -6,6 +6,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
 <title>Battle of the Red and Blue Agents — Offline</title>
 <link rel="stylesheet" href="TemplateData/style.css"/>
+<script>
+  // Register as early as possible so the worker can intercept the build files.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+</script>
 <style>
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
   #unity-container { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
@@ -362,11 +368,14 @@
   });
   window.addEventListener("error", (e) => console.error(e.message));
 
-  // Cache the build locally after the first visit: repeat loads skip the network.
+  // Everything just loaded is still in the HTTP cache: tell the service worker
+  // to copy it into Cache Storage so the next visit never touches the network.
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    });
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        if (reg.active) reg.active.postMessage({ type: "precache-build" });
+      })
+      .catch(() => {});
   }
 </script>
 </body>
