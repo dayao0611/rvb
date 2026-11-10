@@ -361,6 +361,13 @@
     container.focus(); window.focus(); canvas.focus();
   });
   window.addEventListener("error", (e) => console.error(e.message));
+
+  // Cache the build locally after the first visit: repeat loads skip the network.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>
